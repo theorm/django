@@ -64,16 +64,20 @@ for alias, database in settings.DATABASES.items():
             full_engine = "django.db.backends.%s" % database['ENGINE']
         database['ENGINE'] = full_engine
 
+# Load custom `ConnectionHandler` from settings or fallback to default if not provided.
+# This is useful for manipulating DB settings before a connection is returned. 
 if hasattr(settings,'DB_CONNECTION_HANDLER'):
     module, classname = settings.DB_CONNECTION_HANDLER.rsplit('.', 1)
     
     try:
         mod = import_module(module)
     except ImportError, e:
-        from django.core import exceptions
-        raise exceptions.ImproperlyConfigured('Error importing connection handler %s: "%s"' % (module, e))
+        raise ImproperlyConfigured('Error importing connection handler %s: "%s"' % (module, e))
+    try:
+        ch_class = getattr(mod, classname)
+    except AttributeError:
+        raise ImproperlyConfigured('Module "%s" does not define a "%s" class' % (module, classname))
     
-    ch_class = getattr(mod, classname)
     connections = ch_class(settings.DATABASES)
 else:
     connections = ConnectionHandler(settings.DATABASES)
