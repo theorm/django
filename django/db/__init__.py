@@ -4,6 +4,8 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db.utils import ConnectionHandler, ConnectionRouter, load_backend, DEFAULT_DB_ALIAS, \
                             DatabaseError, IntegrityError
 from django.utils.functional import curry
+from django.utils.importlib import import_module
+
 
 __all__ = ('backend', 'connection', 'connections', 'router', 'DatabaseError',
     'IntegrityError', 'DEFAULT_DB_ALIAS')
@@ -62,7 +64,19 @@ for alias, database in settings.DATABASES.items():
             full_engine = "django.db.backends.%s" % database['ENGINE']
         database['ENGINE'] = full_engine
 
-connections = ConnectionHandler(settings.DATABASES)
+if hasattr(settings,'DB_CONNECTION_HANDLER'):
+    module, classname = settings.DB_CONNECTION_HANDLER.rsplit('.', 1)
+    
+    try:
+        mod = import_module(module)
+    except ImportError, e:
+        from django.core import exceptions
+        raise exceptions.ImproperlyConfigured('Error importing connection handler %s: "%s"' % (module, e))
+    
+    ch_class = getattr(mod, classname)
+    connections = ch_class(settings.DATABASES)
+else:
+    connections = ConnectionHandler(settings.DATABASES)
 
 router = ConnectionRouter(settings.DATABASE_ROUTERS)
 
